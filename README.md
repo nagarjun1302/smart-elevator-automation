@@ -6,7 +6,7 @@ A Raspberry Pi 3 based elevator prototype that uses **sensor fusion** to
 verify human presence before stopping at a floor, eliminating unnecessary
 stops and reducing energy waste.
 
-Three sensors vote on each detection event — the elevator opens its doors
+Three sensors vote on each detection event - the elevator opens its doors
 **only when ≥ 2 of 3 sensors confirm a person is present**.
 
 ---
