@@ -23,15 +23,11 @@ Three sensors vote on each detection event - the elevator opens its doors
 | Processing | Raspberry Pi 3 | Sensor fusion + decision logic |
 | Control | Flask + Socket.IO | Real-time web dashboard |
 
-### Operational Cycle
-
-![System Cycle](system_cycle.png)
-
 ---
 
 ## Flowchart
 
-![Flowchart](flowchart.png)
+![Flowchart](flowchart.jpg)
 
 ---
 
@@ -75,6 +71,22 @@ Three sensors vote on each detection event - the elevator opens its doors
 | `move_elevator_to(floor)` | Drives motor relays, emits Socket.IO events, calls presence check |
 | `button_monitor()` | Daemon thread – polls push buttons, fills `requested_floors` set |
 | `elevator_control_loop()` | Daemon thread – dispatches to nearest pending floor |
+
+---
+
+## Circuit Images
+
+![Circuit 1](circuit1.jpg)
+
+![Circuit 2](circuit2.jpg)
+
+---
+
+## Output Images
+
+![Output 1](output1.jpg)
+
+![Output 2](output2.jpg)
 
 ---
 
