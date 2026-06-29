@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Elevator Dashboard</title>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #222;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 1.6em;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 10px 24px;
+      background: #333;
+      border-radius: 6px;
+      font-size: 1.2em;
+      margin-bottom: 24px;
+    }
+
+    .status span { color: #4fc3f7; font-weight: bold; }
+
+    /* ── Building ─────────────────────────────────── */
+    .building {
+      position: relative;
+      width: 200px;
+      height: 720px;
+      margin: 0 auto;
+      background: #444;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #000;
+      border: 4px solid #888;
+    }
+
+    .floor {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 120px;
+      border-bottom: 2px solid #666;
+    }
+
+    .floor-label {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      font-size: 0.9em;
+      opacity: 0.6;
+    }
+
+    /* ── Shaft ──────────────────────────────────────── */
+    .elevator-shaft {
+      position: absolute;
+      left: 75px;
+      width: 50px;
+      height: 100%;
+      background: #222;
+      border-left: 2px solid #333;
+      border-right: 2px solid #333;
+      z-index: 1;
+    }
+
+    /* ── Elevator car ────────────────────────────────── */
+    .elevator {
+      position: absolute;
+      left: 75px;
+      width: 50px;
+      height: 100px;
+      background: linear-gradient(#aaa, #eee 70%, #aaa);
+      border: 3px solid #888;
+      border-radius: 6px;
+      z-index: 2;
+      transition: top 2s cubic-bezier(.68,-.55,.27,1.55);
+      overflow: hidden;
+    }
+
+    /* ── Doors ───────────────────────────────────────── */
+    .door {
+      position: absolute;
+      top: 0;
+      width: 23px;
+      height: 100px;
+      background: #bbb;
+      transition: left 1s, width 1s;
+      z-index: 3;
+    }
+
+    .door.left  { left: 0;    border-right: 2px solid #888; }
+    .door.right { left: 25px; border-left:  2px solid #888; }
+
+    /* ── Sensor panel ────────────────────────────────── */
+    .sensor-panel {
+      margin: 24px auto 0;
+      width: 200px;
+      background: #333;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .sensor-panel h3 { font-size: 0.9em; margin-bottom: 8px; opacity: 0.7; }
+
+    .sensor-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85em;
+      margin: 4px 0;
+    }
+
+    .led {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #555;
+      transition: background 0.3s;
+    }
+
+    .led.on { background: #4fc3f7; box-shadow: 0 0 6px #4fc3f7; }
+
+    /* ── Log ──────────────────────────────────────────── */
+    .log {
+      margin: 16px auto 0;
+      width: 200px;
+      max-height: 120px;
+      overflow-y: auto;
+      background: #1a1a1a;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 0.75em;
+      text-align: left;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Smart Elevator Dashboard</h1>
+  <div class="status">Floor: <span id="floor-display">1</span></div>
+
+  <div class="building">
+    <div class="elevator-shaft"></div>
+    <div class="floor" style="top:0">   <span class="floor-label">6th Floor</span></div>
+    <div class="floor" style="top:120px"><span class="floor-label">5th Floor</span></div>
+    <div class="floor" style="top:240px"><span class="floor-label">4th Floor</span></div>
+    <div class="floor" style="top:360px"><span class="floor-label">3rd Floor</span></div>
+    <div class="floor" style="top:480px"><span class="floor-label">2nd Floor</span></div>
+    <div class="floor" style="top:600px"><span class="floor-label">1st Floor</span></div>
+    <div id="elevator" class="elevator" style="top:620px;">
+      <div id="door-left"  class="door left"></div>
+      <div id="door-right" class="door right"></div>
+    </div>
+  </div>
+
+  <div class="sensor-panel">
+    <h3>Sensor Status</h3>
+    <div class="sensor-row"><span>PIR</span>        <div id="led-pir"  class="led"></div></div>
+    <div class="sensor-row"><span>Ultrasonic</span> <div id="led-us"   class="led"></div></div>
+    <div class="sensor-row"><span>Face</span>       <div id="led-face" class="led"></div></div>
+    <div class="sensor-row"><span>Door</span>       <div id="led-door" class="led"></div></div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    // Floor → CSS top value (px) inside the 720 px building
+    const floorTops = { 1: 620, 2: 500, 3: 380, 4: 260, 5: 140, 6: 20 };
+    let currentFloor = 1;
+
+    const socket = io();
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      el.innerHTML = `<div>${new Date().toLocaleTimeString()} — ${msg}</div>` + el.innerHTML;
+    }
+
+    function openDoors() {
+      document.getElementById('door-left').style.width  = '2px';
+      document.getElementById('door-right').style.width = '2px';
+      document.getElementById('door-right').style.left  = '48px';
+      document.getElementById('led-door').classList.add('on');
+      log('Doors opened');
+    }
+
+    function closeDoors() {
+      document.getElementById('door-left').style.width  = '23px';
+      document.getElementById('door-right').style.width = '23px';
+      document.getElementById('door-right').style.left  = '25px';
+      document.getElementById('led-door').classList.remove('on');
+      log('Doors closed');
+    }
+
+    // Server → Client events
+    socket.on('move', data => {
+      currentFloor = data.floor;
+      document.getElementById('elevator').style.top    = floorTops[currentFloor] + 'px';
+      document.getElementById('floor-display').textContent = currentFloor;
+      log(`Elevator moved to floor ${currentFloor}`);
+    });
+
+    socket.on('door', data => data.open ? openDoors() : closeDoors());
+
+    socket.on('sensor', data => {
+      if (data.pir  !== undefined) document.getElementById('led-pir').classList.toggle('on', data.pir);
+      if (data.us   !== undefined) document.getElementById('led-us').classList.toggle('on', data.us);
+      if (data.face !== undefined) document.getElementById('led-face').classList.toggle('on', data.face);
+    });
+
+    // Keyboard controls (local demo only)
+    document.addEventListener('keydown', e => {
+      const key = e.key.toLowerCase();
+      if (key === 'o') { openDoors(); socket.emit('door', { open: true }); }
+      else if (key === 'c') { closeDoors(); socket.emit('door', { open: false }); }
+      else if (key >= '1' && key <= '6') {
+        const f = parseInt(key);
+        document.getElementById('elevator').style.top           = floorTops[f] + 'px';
+        document.getElementById('floor-display').textContent    = f;
+        currentFloor = f;
+        socket.emit('move', { floor: f });
+      }
+    });
+
+    // Initialise with doors closed
+    closeDoors();
+    log('System initialised');
+  </script>
+</body>
+</html>

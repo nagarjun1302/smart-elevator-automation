@@ -1,0 +1,5 @@
+flask>=2.3
+flask-socketio>=5.3
+RPi.GPIO>=0.7.1
+opencv-python>=4.8
+eventlet>=0.35          # async worker for Flask-SocketIO
